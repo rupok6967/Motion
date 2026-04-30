@@ -1,0 +1,1688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>গতি (Motion) - Interactive 3D Physics</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+Bengali:wght@400;600;700&family=Orbitron:wght@700;900&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --card: #1a1a28;
+    --accent: #00e5ff;
+    --accent2: #ff6b35;
+    --accent3: #7fff00;
+    --text: #e8e8f0;
+    --muted: #888899;
+    --border: #2a2a3a;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  .hero {
+    background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 50%, #0a1628 100%);
+    padding: 40px 20px 30px;
+    text-align: center;
+    border-bottom: 1px solid var(--accent);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;left: -50%;
+    width: 200%;height: 200%;
+    background: radial-gradient(ellipse at center, rgba(0,229,255,0.05) 0%, transparent 60%);
+    animation: pulse 4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+
+  .hero h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(0,229,255,0.5);
+    position: relative;
+  }
+  .hero p { color: var(--muted); margin-top: 8px; font-size: 0.85rem; position:relative; }
+
+  /* LANGUAGE TOGGLE */
+  .lang-btn {
+    position: fixed;
+    top: 15px; right: 15px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 8px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 1000;
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+    transition: all 0.3s;
+  }
+  .lang-btn:hover { background: var(--accent2); }
+
+  /* NAV */
+  .nav {
+    display: flex;
+    gap: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-btn {
+    background: var(--card);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover, .nav-btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+
+  /* SECTIONS */
+  .section {
+    display: none;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .section.active { display: block; }
+
+  .section-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.3rem;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .section-sub {
+    color: var(--muted);
+    font-size: 0.75rem;
+    margin-bottom: 20px;
+  }
+
+  /* CANVAS CARD */
+  .canvas-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    position: relative;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+  }
+
+  /* CONTROLS */
+  .controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .controls-title {
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  .ctrl-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  .ctrl-item label {
+    display: block;
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .ctrl-item input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+  .ctrl-item span {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--accent3);
+    text-align: right;
+    margin-top: 2px;
+  }
+  .ctrl-item select {
+    width: 100%;
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+  }
+
+  /* EXPLANATION BOX */
+  .explain {
+    background: var(--card);
+    border-left: 3px solid var(--accent2);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+  .explain h3 { font-size: 0.8rem; color: var(--accent2); margin-bottom: 8px; }
+  .explain p { font-size: 0.72rem; color: var(--text); line-height: 1.7; }
+  .explain .bn { display: none; }
+  .explain .formula {
+    background: rgba(0,229,255,0.07);
+    border: 1px solid rgba(0,229,255,0.2);
+    padding: 8px 12px;
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--accent);
+    text-align: center;
+  }
+
+  /* BUTTONS */
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .btn {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 7px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn:hover { background: var(--accent); color: #000; }
+  .btn.danger { color: var(--accent2); border-color: var(--accent2); }
+  .btn.danger:hover { background: var(--accent2); color: #fff; }
+  .btn.green { color: var(--accent3); border-color: var(--accent3); }
+  .btn.green:hover { background: var(--accent3); color: #000; }
+
+  /* STATS */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .stat-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 10px;
+    text-align: center;
+  }
+  .stat-box .val { font-size: 1.1rem; color: var(--accent3); font-weight: 700; }
+  .stat-box .lbl { font-size: 0.6rem; color: var(--muted); margin-top: 2px; }
+
+  /* BANGLA */
+  body.bangla .en { display: none !important; }
+  body.bangla .bn { display: block !important; }
+  body.bangla .btn-bn { display: none; }
+  body:not(.bangla) .bn { display: none !important; }
+
+  /* GRAPH */
+  .graph-canvas { background: #0d0d18; }
+
+  /* ROAD */
+  .road-overlay {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    font-size: 0.65rem;
+    color: rgba(0,229,255,0.6);
+    background: rgba(0,0,0,0.5);
+    padding: 4px 8px;
+  }
+
+  /* VECTORS */
+  .vector-display {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .vec-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    flex: 1;
+    min-width: 120px;
+  }
+  .vec-box .label { font-size: 0.6rem; color: var(--muted); }
+  .vec-box .value { font-size: 0.9rem; color: var(--accent2); }
+
+  @media (max-width: 600px) {
+    .ctrl-row { grid-template-columns: 1fr 1fr; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<button class="lang-btn" id="langToggle" onclick="toggleLang()">🇧🇩 বাংলা</button>
+
+<div class="hero">
+  <h1>গতি | MOTION</h1>
+  <p class="en">Chapter 2 — Interactive 3D Physics Visualizer | Customizable Animations</p>
+  <p class="bn" style="display:none">দ্বিতীয় অধ্যায় — ইন্টারেক্টিভ পদার্থবিজ্ঞান ভিজ্যুয়ালাইজার</p>
+</div>
+
+<nav class="nav">
+  <button class="nav-btn active" onclick="showSection('rest-motion')">2.1 Rest & Motion</button>
+  <button class="nav-btn" onclick="showSection('types-motion')">2.2 Types of Motion</button>
+  <button class="nav-btn" onclick="showSection('scalar-vector')">2.3 Scalar & Vector</button>
+  <button class="nav-btn" onclick="showSection('distance-disp')">2.4 Distance & Displacement</button>
+  <button class="nav-btn" onclick="showSection('speed-vel')">2.5 Speed & Velocity</button>
+  <button class="nav-btn" onclick="showSection('acceleration')">2.6 Acceleration</button>
+  <button class="nav-btn" onclick="showSection('equations')">2.7 Equations of Motion</button>
+  <button class="nav-btn" onclick="showSection('freefall')">2.8 Free Fall</button>
+  <button class="nav-btn" onclick="showSection('graphs')">Graphs</button>
+</nav>
+
+<!-- ===== 2.1 REST & MOTION ===== -->
+<div class="section active" id="rest-motion">
+  <div class="section-title en">2.1 Rest and Motion</div>
+  <div class="section-title bn" style="display:none">২.১ স্থিতি এবং গতি</div>
+  <div class="section-sub en">Click objects to change the reference frame. Everything is relative!</div>
+  <div class="section-sub bn" style="display:none">রেফারেন্স ফ্রেম পরিবর্তন করতে বস্তুগুলোতে ক্লিক করো। সব গতিই আপেক্ষিক!</div>
+
+  <div class="canvas-card">
+    <canvas id="c21" height="300"></canvas>
+    <div class="road-overlay en">Click a vehicle to set as reference frame</div>
+    <div class="road-overlay bn" style="display:none">রেফারেন্স ফ্রেম সেট করতে যানবাহনে ক্লিক করো</div>
+  </div>
+
+  <div class="controls">
+    <div class="controls-title en">Customize</div>
+    <div class="controls-title bn" style="display:none">কাস্টমাইজ</div>
+    <div class="ctrl-row">
+      <div class="ctrl-item">
+        <label class="en">Car Speed (m/s)</label>
+        <label class="bn" style="display:none">গাড়ির গতি (m/s)</label>
+        <input type="range" id="car1Speed" min="10" max="120" value="60" oninput="updateVal('v21car1',this.value,'m/s')">
+        <span id="v21car1">60 m/s</span>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Train Speed (m/s)</label>
+        <label class="bn" style="display:none">ট্রেনের গতি (m/s)</label>
+        <input type="range" id="train1Speed" min="0" max="150" value="80" oninput="updateVal('v21train',this.value,'m/s')">
+        <span id="v21train">80 m/s</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" onclick="setRef21('ground')">🌍 Ground Reference</button>
+    <button class="btn" onclick="setRef21('car')">🚗 Car Reference</button>
+    <button class="btn" onclick="setRef21('train')">🚆 Train Reference</button>
+  </div>
+
+  <div class="explain">
+    <h3 class="en">Why does this happen?</h3>
+    <h3 class="bn" style="display:none">এটা কেন হয়?</h3>
+    <p class="en">Motion is relative. When you sit in a train, you are stationary relative to the train, but moving at train's speed relative to the ground. There is NO absolute rest in the universe — it all depends on your reference frame (মূল বিন্দু).</p>
+    <p class="bn" style="display:none">গতি আপেক্ষিক। ট্রেনে বসে থাকলে তুমি ট্রেনের সাপেক্ষে স্থির, কিন্তু মাটির সাপেক্ষে গতিশীল। মহাবিশ্বে কোনো পরম স্থিতি নেই — সব নির্ভর করে তোমার মূল বিন্দুর উপর।</p>
+    <div class="formula">v_relative = v_object - v_reference</div>
+  </div>
+</div>
+
+<!-- ===== 2.2 TYPES OF MOTION ===== -->
+<div class="section" id="types-motion">
+  <div class="section-title en">2.2 Different Types of Motion</div>
+  <div class="section-title bn" style="display:none">২.২ বিভিন্ন প্রকার গতি</div>
+  <div class="section-sub en">Watch how different real-life objects move differently</div>
+  <div class="section-sub bn" style="display:none">দেখো কিভাবে বিভিন্ন বস্তু ভিন্নভাবে চলে</div>
+
+  <div class="controls">
+    <div class="controls-title">Select Motion Type</div>
+    <div class="btn-row">
+      <button class="btn active" onclick="setMotionType('linear')">Linear (রৈখিক)</button>
+      <button class="btn" onclick="setMotionType('circular')">Circular (ঘূর্ণন)</button>
+      <button class="btn" onclick="setMotionType('translational')">Translational (চলন)</button>
+      <button class="btn" onclick="setMotionType('periodic')">Periodic (পর্যাবৃত্ত)</button>
+      <button class="btn" onclick="setMotionType('shm')">SHM (সরল স্পন্দন)</button>
+    </div>
+  </div>
+
+  <div class="canvas-card">
+    <canvas id="c22" height="300"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="controls-title">Customize Speed</div>
+    <div class="ctrl-row">
+      <div class="ctrl-item">
+        <label class="en">Speed Multiplier</label>
+        <label class="bn" style="display:none">গতির গুণক</label>
+        <input type="range" id="motionSpeed" min="0.2" max="3" step="0.1" value="1" oninput="updateVal('vMotSpeed',this.value,'x')">
+        <span id="vMotSpeed">1x</span>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Object Size</label>
+        <label class="bn" style="display:none">বস্তুর আকার</label>
+        <input type="range" id="objSize" min="10" max="40" value="20" oninput="updateVal('vObjSize',this.value,'px')">
+        <span id="vObjSize">20px</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="explain" id="motionExplain">
+    <h3 class="en">Linear Motion (সরলরৈখিক গতি)</h3>
+    <h3 class="bn" style="display:none">সরলরৈখিক গতি</h3>
+    <p class="en">A car moving in a straight road. Every point of the car moves in the same direction at the same speed — that's linear motion. Like a bullet fired from a rifle, or a train on straight tracks.</p>
+    <p class="bn" style="display:none">সোজা রাস্তায় গাড়ি চলা। গাড়ির প্রতিটি বিন্দু একই দিকে একই গতিতে যায় — এটাই সরলরৈখিক গতি। রাইফেল থেকে বুলেট বের হওয়া বা সোজা রেলপথে ট্রেন চলার মতো।</p>
+  </div>
+</div>
+
+<!-- ===== 2.3 SCALAR & VECTOR ===== -->
+<div class="section" id="scalar-vector">
+  <div class="section-title en">2.3 Scalar and Vector Quantities</div>
+  <div class="section-title bn" style="display:none">২.৩ স্কেলার ও ভেষ্টর রাশি</div>
+
+  <div class="canvas-card">
+    <canvas id="c23" height="320"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="controls-title">Draw Your Own Vectors</div>
+    <div class="ctrl-row">
+      <div class="ctrl-item">
+        <label class="en">Vector A Magnitude</label>
+        <label class="bn" style="display:none">ভেষ্টর A এর মান</label>
+        <input type="range" id="vecA" min="20" max="150" value="80" oninput="updateVal('vVecA',this.value,'units'); drawVectors()">
+        <span id="vVecA">80 units</span>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Vector A Direction (°)</label>
+        <label class="bn" style="display:none">ভেষ্টর A এর দিক (°)</label>
+        <input type="range" id="dirA" min="0" max="360" value="30" oninput="updateVal('vDirA',this.value,'°'); drawVectors()">
+        <span id="vDirA">30°</span>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Vector B Magnitude</label>
+        <label class="bn" style="display:none">ভেষ্টর B এর মান</label>
+        <input type="range" id="vecB" min="20" max="150" value="60" oninput="updateVal('vVecB',this.value,'units'); drawVectors()">
+        <span id="vVecB">60 units</span>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Vector B Direction (°)</label>
+        <label class="bn" style="display:none">ভেষ্টর B এর দিক (°)</label>
+        <input type="range" id="dirB" min="0" max="360" value="120" oninput="updateVal('vDirB',this.value,'°'); drawVectors()">
+        <span id="vDirB">120°</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="vector-display">
+    <div class="vec-box"><div class="label en">|Resultant Vector|</div><div class="label bn" style="display:none">লব্ধি ভেষ্টর</div><div class="value" id="resultantVal">—</div></div>
+    <div class="vec-box"><div class="label en">Temperature (Scalar)</div><div class="label bn" style="display:none">তাপমাত্রা (স্কেলার)</div><div class="value">37.5°C</div></div>
+    <div class="vec-box"><div class="label en">Distance (Scalar)</div><div class="label bn" style="display:none">দূরত্ব (স্কেলার)</div><div class="value">100 m</div></div>
+    <div class="vec-box"><div class="label en">Displacement (Vector)</div><div class="label bn" style="display:none">সরণ (ভেষ্টর)</div><div class="value" id="dispVal">—</div></div>
+  </div>
+
+  <div class="explain">
+    <h3 class="en">Scalar vs Vector</h3>
+    <h3 class="bn" style="display:none">স্কেলার বনাম ভেষ্টর</h3>
+    <p class="en">Scalar quantities only have magnitude (size). Temperature 37°C, Distance 100m — no direction needed. Vector quantities have BOTH magnitude AND direction. Displacement, velocity, force are vectors. You cannot fully describe "go 5km" without saying which direction!</p>
+    <p class="bn" style="display:none">স্কেলার রাশির শুধু মান আছে। তাপমাত্রা ৩৭°C, দূরত্ব ১০০ মিটার — দিক দরকার নেই। ভেষ্টর রাশির মান এবং দিক দুটোই আছে। সরণ, বেগ, বল হলো ভেষ্টর। "৫ কিমি যাও" বললে সম্পূর্ণ বলা হয় না, কোন দিকে সেটাও বলতে হবে!</p>
+  </div>
+</div>
+
+<!-- ===== 2.4 DISTANCE & DISPLACEMENT ===== -->
+<div class="section" id="distance-disp">
+  <div class="section-title en">2.4 Distance and Displacement</div>
+  <div class="section-title bn" style="display:none">২.৪ দূরত্ব ও সরণ</div>
+
+  <div class="canvas-card">
+    <canvas id="c24" height="320"></canvas>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box"><div class="val" id="distVal">0 m</div><div class="lbl en">Distance (দূরত্ব)</div><div class="lbl bn" style="display:none">দূরত্ব</div></div>
+    <div class="stat-box"><div class="val" id="displVal">0 m</div><div class="lbl en">Displacement (সরণ)</div><div class="lbl bn" style="display:none">সরণ</div></div>
+    <div class="stat-box"><div class="val" id="pathLen">0</div><div class="lbl en">Path Points</div><div class="lbl bn" style="display:none">পথ বিন্দু</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="controls-title">Set Journey</div>
+    <div class="ctrl-row">
+      <div class="ctrl-item">
+        <label class="en">Route Type</label>
+        <label class="bn" style="display:none">পথের ধরন</label>
+        <select id="routeType" onchange="setupRoute()">
+          <option value="straight">Straight Road (সোজা)</option>
+          <option value="curved">Curved Path (বাঁকা)</option>
+          <option value="return">A→B→A Return (ফিরে আসা)</option>
+          <option value="city">City Blocks (শহরের পথ)</option>
+        </select>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Animation Speed</label>
+        <label class="bn" style="display:none">অ্যানিমেশন গতি</label>
+        <input type="range" id="routeSpeed" min="0.5" max="4" step="0.5" value="1.5" oninput="updateVal('vRouteSpeed',this.value,'x')">
+        <span id="vRouteSpeed">1.5x</span>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn green" onclick="startRoute()">▶ Start</button>
+      <button class="btn danger" onclick="resetRoute()">↺ Reset</button>
+    </div>
+  </div>
+
+  <div class="explain">
+    <h3 class="en">Distance ≠ Displacement</h3>
+    <h3 class="bn" style="display:none">দূরত্ব ≠ সরণ</h3>
+    <p class="en">Distance is the total path length traveled (scalar — no direction). Displacement is the straight line from START to END position (vector — has direction). If you walk 4km in a curve but end up 3km away from start, distance=4km but displacement=3km. If you return to start, displacement = ZERO but distance is not zero!</p>
+    <p class="bn" style="display:none">দূরত্ব হলো মোট অতিক্রান্ত পথের দৈর্ঘ্য (স্কেলার — দিক নেই)। সরণ হলো শুরু থেকে শেষ অবস্থানের সরলরেখা (ভেষ্টর — দিক আছে)। ৪ কিমি বাঁকা পথ হেঁটে শুরু থেকে ৩ কিমি দূরে থাকলে: দূরত্ব=৪কিমি, সরণ=৩কিমি। ফিরে আসলে সরণ=শূন্য কিন্তু দূরত্ব শূন্য নয়!</p>
+    <div class="formula">|Displacement| ≤ Distance &nbsp;|&nbsp; [সরণ] = L (vector) &nbsp;|&nbsp; [দূরত্ব] = L (scalar)</div>
+  </div>
+</div>
+
+<!-- ===== 2.5 SPEED & VELOCITY ===== -->
+<div class="section" id="speed-vel">
+  <div class="section-title en">2.5 Speed and Velocity</div>
+  <div class="section-title bn" style="display:none">২.৫ দ্রুতি এবং বেগ</div>
+
+  <div class="canvas-card">
+    <canvas id="c25" height="300"></canvas>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box"><div class="val" id="speedVal">0</div><div class="lbl en">Speed (m/s)</div><div class="lbl bn" style="display:none">দ্রুতি (m/s)</div></div>
+    <div class="stat-box"><div class="val" id="velVal">0</div><div class="lbl en">Velocity (m/s)</div><div class="lbl bn" style="display:none">বেগ (m/s)</div></div>
+    <div class="stat-box"><div class="val" id="avgSpeedVal">0</div><div class="lbl en">Avg Speed</div><div class="lbl bn" style="display:none">গড় দ্রুতি</div></div>
+    <div class="stat-box"><div class="val" id="avgVelVal">0</div><div class="lbl en">Avg Velocity</div><div class="lbl bn" style="display:none">গড় বেগ</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="controls-title">Customize</div>
+    <div class="ctrl-row">
+      <div class="ctrl-item">
+        <label class="en">Initial Speed (m/s)</label>
+        <label class="bn" style="display:none">আদি দ্রুতি (m/s)</label>
+        <input type="range" id="initSpeed" min="5" max="50" value="20" oninput="updateVal('vInitSpeed',this.value,'m/s')">
+        <span id="vInitSpeed">20 m/s</span>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Track Type</label>
+        <label class="bn" style="display:none">পথের ধরন</label>
+        <select id="trackType25" onchange="reset25()">
+          <option value="straight">Straight Highway</option>
+          <option value="circular">Circular Track</option>
+          <option value="oval">Oval Circuit</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn green" onclick="start25()">▶ Start Race</button>
+      <button class="btn danger" onclick="reset25()">↺ Reset</button>
+    </div>
+  </div>
+
+  <div class="explain">
+    <h3 class="en">Speed vs Velocity</h3>
+    <h3 class="bn" style="display:none">দ্রুতি বনাম বেগ</h3>
+    <p class="en">Speed = Distance / Time (scalar). Velocity = Displacement / Time (vector). On a circular track, a car moves at constant SPEED but its VELOCITY changes every moment because direction changes. Average velocity of one full circle = ZERO (start = end position), but average speed ≠ zero!</p>
+    <p class="bn" style="display:none">দ্রুতি = দূরত্ব / সময় (স্কেলার)। বেগ = সরণ / সময় (ভেষ্টর)। বৃত্তাকার পথে গাড়ির দ্রুতি সমান থাকতে পারে কিন্তু প্রতি মুহূর্তে দিক পরিবর্তন হওয়ায় বেগ পরিবর্তিত হয়। এক পূর্ণ চক্রের গড় বেগ = শূন্য, কিন্তু গড় দ্রুতি শূন্য নয়!</p>
+    <div class="formula">দ্রুতি [v] = LT⁻¹ &nbsp;|&nbsp; বেগ [v] = LT⁻¹ &nbsp;|&nbsp; v = s/t</div>
+  </div>
+</div>
+
+<!-- ===== 2.6 ACCELERATION ===== -->
+<div class="section" id="acceleration">
+  <div class="section-title en">2.6 Acceleration</div>
+  <div class="section-title bn" style="display:none">২.৬ ত্বরণ</div>
+
+  <div class="canvas-card">
+    <canvas id="c26" height="300"></canvas>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box"><div class="val" id="accVelVal">0</div><div class="lbl en">Current Velocity (m/s)</div><div class="lbl bn" style="display:none">বর্তমান বেগ (m/s)</div></div>
+    <div class="stat-box"><div class="val" id="accVal">0</div><div class="lbl en">Acceleration (m/s²)</div><div class="lbl bn" style="display:none">ত্বরণ (m/s²)</div></div>
+    <div class="stat-box"><div class="val" id="accTimeVal">0</div><div class="lbl en">Time (s)</div><div class="lbl bn" style="display:none">সময় (s)</div></div>
+    <div class="stat-box"><div class="val" id="accDistVal">0</div><div class="lbl en">Distance (m)</div><div class="lbl bn" style="display:none">দূরত্ব (m)</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="controls-title">Customize</div>
+    <div class="ctrl-row">
+      <div class="ctrl-item">
+        <label class="en">Acceleration (m/s²)</label>
+        <label class="bn" style="display:none">ত্বরণ (m/s²)</label>
+        <input type="range" id="accInput" min="-10" max="10" value="3" oninput="updateVal('vAccInput',this.value,'m/s²')">
+        <span id="vAccInput">3 m/s²</span>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Initial Velocity (m/s)</label>
+        <label class="bn" style="display:none">আদি বেগ (m/s)</label>
+        <input type="range" id="initVelAcc" min="0" max="30" value="10" oninput="updateVal('vInitVelAcc',this.value,'m/s')">
+        <span id="vInitVelAcc">10 m/s</span>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Vehicle Type</label>
+        <label class="bn" style="display:none">যানবাহনের ধরন</label>
+        <select id="vehicleType">
+          <option value="car">🚗 Car</option>
+          <option value="bike">🏍️ Bike</option>
+          <option value="truck">🚛 Truck</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn green" onclick="startAcc()">▶ Accelerate!</button>
+      <button class="btn danger" onclick="resetAcc()">↺ Reset</button>
+    </div>
+  </div>
+
+  <div class="explain">
+    <h3 class="en">What is Acceleration?</h3>
+    <h3 class="bn" style="display:none">ত্বরণ কী?</h3>
+    <p class="en">Acceleration = rate of change of velocity. If velocity increases → positive acceleration (ধনাত্মক ত্বরণ). If velocity decreases → negative acceleration / deceleration (মন্দন). Even if speed is constant, changing DIRECTION means acceleration exists (circular motion)! Formula: a = (v - u) / t</p>
+    <p class="bn" style="display:none">ত্বরণ = সময়ের সাথে বেগের পরিবর্তনের হার। বেগ বাড়লে → ধনাত্মক ত্বরণ। বেগ কমলে → মন্দন (ঋণাত্মক ত্বরণ)। দ্রুতি সমান থাকলেও দিক পরিবর্তন হলে ত্বরণ হয় (বৃত্তাকার গতি)! সূত্র: a = (v - u) / t</p>
+    <div class="formula">a = (v - u) / t &nbsp;|&nbsp; [a] = LT⁻² &nbsp;|&nbsp; একক: ms⁻²</div>
+  </div>
+</div>
+
+<!-- ===== 2.7 EQUATIONS OF MOTION ===== -->
+<div class="section" id="equations">
+  <div class="section-title en">2.7 Equations of Motion</div>
+  <div class="section-title bn" style="display:none">২.৭ গতির সমীকরণ</div>
+
+  <div class="canvas-card">
+    <canvas id="c27" height="300"></canvas>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box"><div class="val" id="eq_v">—</div><div class="lbl">v = u + at</div></div>
+    <div class="stat-box"><div class="val" id="eq_s">—</div><div class="lbl">s = ut + ½at²</div></div>
+    <div class="stat-box"><div class="val" id="eq_v2">—</div><div class="lbl">v² = u² + 2as</div></div>
+    <div class="stat-box"><div class="val" id="eq_t">0 s</div><div class="lbl en">Time elapsed</div><div class="lbl bn" style="display:none">অতিবাহিত সময়</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="controls-title en">Enter Values (বিভিন্ন মান দাও)</div>
+    <div class="controls-title bn" style="display:none">বিভিন্ন মান দাও</div>
+    <div class="ctrl-row">
+      <div class="ctrl-item">
+        <label>u — Initial Velocity (আদি বেগ) m/s</label>
+        <input type="range" id="eq_u" min="0" max="30" value="5" oninput="updateVal('v_eq_u',this.value,'m/s'); calcEquations()">
+        <span id="v_eq_u">5 m/s</span>
+      </div>
+      <div class="ctrl-item">
+        <label>a — Acceleration (ত্বরণ) m/s²</label>
+        <input type="range" id="eq_a" min="-5" max="10" value="2" oninput="updateVal('v_eq_a',this.value,'m/s²'); calcEquations()">
+        <span id="v_eq_a">2 m/s²</span>
+      </div>
+      <div class="ctrl-item">
+        <label>t — Time (সময়) s</label>
+        <input type="range" id="eq_time" min="1" max="20" value="5" oninput="updateVal('v_eq_t',this.value,'s'); calcEquations()">
+        <span id="v_eq_t">5 s</span>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn green" onclick="startEq()">▶ Launch Car</button>
+      <button class="btn danger" onclick="resetEq()">↺ Reset</button>
+    </div>
+  </div>
+
+  <div class="explain">
+    <h3 class="en">Three Equations of Motion</h3>
+    <h3 class="bn" style="display:none">গতির তিনটি সমীকরণ</h3>
+    <p class="en">These three equations connect initial velocity (u), final velocity (v), acceleration (a), time (t), and displacement (s). All derived for constant acceleration in straight line motion. Change the sliders to see how the car's journey changes in real time!</p>
+    <p class="bn" style="display:none">এই তিনটি সমীকরণ আদি বেগ (u), শেষ বেগ (v), ত্বরণ (a), সময় (t) এবং সরণ (s) কে যুক্ত করে। সব সমতরণ গতির জন্য। স্লাইডার পরিবর্তন করো এবং দেখো গাড়ির যাত্রা কিভাবে বদলায়!</p>
+    <div class="formula">① v = u + at &nbsp;|&nbsp; ② s = ut + ½at² &nbsp;|&nbsp; ③ v² = u² + 2as</div>
+  </div>
+</div>
+
+<!-- ===== 2.8 FREE FALL ===== -->
+<div class="section" id="freefall">
+  <div class="section-title en">2.8 Laws of Falling Bodies (Free Fall)</div>
+  <div class="section-title bn" style="display:none">২.৮ পড়ন্ত বস্তুর সূত্র</div>
+
+  <div class="canvas-card">
+    <canvas id="c28" height="380"></canvas>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box"><div class="val" id="ff_v">0</div><div class="lbl en">Velocity (m/s)</div><div class="lbl bn" style="display:none">বেগ (m/s)</div></div>
+    <div class="stat-box"><div class="val" id="ff_h">0</div><div class="lbl en">Height fallen (m)</div><div class="lbl bn" style="display:none">পতিত উচ্চতা (m)</div></div>
+    <div class="stat-box"><div class="val" id="ff_t">0</div><div class="lbl en">Time (s)</div><div class="lbl bn" style="display:none">সময় (s)</div></div>
+    <div class="stat-box"><div class="val">9.8</div><div class="lbl en">g (m/s²)</div><div class="lbl bn" style="display:none">g (m/s²)</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="controls-title">Customize</div>
+    <div class="ctrl-row">
+      <div class="ctrl-item">
+        <label class="en">Drop Height (m)</label>
+        <label class="bn" style="display:none">উচ্চতা (m)</label>
+        <input type="range" id="dropHeight" min="10" max="200" value="80" oninput="updateVal('vDropH',this.value,'m'); resetFF()">
+        <span id="vDropH">80 m</span>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Object Type</label>
+        <label class="bn" style="display:none">বস্তুর ধরন</label>
+        <select id="dropObj">
+          <option value="ball">⚽ Football</option>
+          <option value="feather">🪶 Feather</option>
+          <option value="stone">🪨 Stone</option>
+          <option value="cat">🐱 Cat</option>
+        </select>
+      </div>
+      <div class="ctrl-item">
+        <label class="en">Initial Velocity (m/s upward)</label>
+        <label class="bn" style="display:none">আদি বেগ (m/s উপরে)</label>
+        <input type="range" id="ffInitV" min="0" max="50" value="0" oninput="updateVal('vFFInitV',this.value,'m/s'); resetFF()">
+        <span id="vFFInitV">0 m/s</span>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn green" onclick="startFF()">▶ Drop!</button>
+      <button class="btn" onclick="throwUp()">🚀 Throw Up!</button>
+      <button class="btn danger" onclick="resetFF()">↺ Reset</button>
+    </div>
+  </div>
+
+  <div class="explain">
+    <h3 class="en">Galileo's Laws of Falling Bodies</h3>
+    <h3 class="bn" style="display:none">গ্যালিলিওর পড়ন্ত বস্তুর সূত্র</h3>
+    <p class="en">Law 1: Objects dropped from the same height fall in the same time regardless of mass (in vacuum). Law 2: velocity ∝ time (v = gt). Law 3: height fallen ∝ t² (h = ½gt²). g = 9.8 m/s² near Earth's surface. Feather and stone fall at same rate in vacuum!</p>
+    <p class="bn" style="display:none">প্রথম সূত্র: একই উচ্চতা থেকে ছাড়া বস্তু একই সময়ে পড়ে (শূন্যে)। দ্বিতীয় সূত্র: বেগ ∝ সময় (v = gt)। তৃতীয় সূত্র: পতিত উচ্চতা ∝ t² (h = ½gt²)। g = ৯.৮ m/s²। শূন্যে পালক এবং পাথর একই সময়ে পড়ে!</p>
+    <div class="formula">v = gt &nbsp;|&nbsp; h = ½gt² &nbsp;|&nbsp; v² = 2gh &nbsp;|&nbsp; g = 9.8 m/s²</div>
+  </div>
+</div>
+
+<!-- ===== GRAPHS ===== -->
+<div class="section" id="graphs">
+  <div class="section-title en">Motion Graphs (গতি-লেখচিত্র)</div>
+  <div class="section-title bn" style="display:none">গতি-লেখচিত্র</div>
+  <div class="section-sub en">Distance-Time, Velocity-Time, and Acceleration-Time graphs — all live!</div>
+  <div class="section-sub bn" style="display:none">দূরত্ব-সময়, বেগ-সময় এবং ত্বরণ-সময় লেখচিত্র — সরাসরি!</div>
+
+  <div class="controls">
+    <div class="controls-title">Set Motion Parameters</div>
+    <div class="ctrl-row">
+      <div class="ctrl-item">
+        <label>u — Initial Velocity (m/s)</label>
+        <input type="range" id="g_u" min="0" max="20" value="0" oninput="updateVal('vg_u',this.value,'m/s'); drawGraphs()">
+        <span id="vg_u">0 m/s</span>
+      </div>
+      <div class="ctrl-item">
+        <label>a — Acceleration (m/s²)</label>
+        <input type="range" id="g_a" min="-5" max="10" value="2" oninput="updateVal('vg_a',this.value,'m/s²'); drawGraphs()">
+        <span id="vg_a">2 m/s²</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid; gap:12px;">
+    <div class="canvas-card">
+      <div style="padding:8px 12px; font-size:0.7rem; color:var(--accent); border-bottom:1px solid var(--border)">Distance-Time Graph (দূরত্ব-সময়)</div>
+      <canvas id="gDist" height="150" class="graph-canvas"></canvas>
+    </div>
+    <div class="canvas-card">
+      <div style="padding:8px 12px; font-size:0.7rem; color:var(--accent2); border-bottom:1px solid var(--border)">Velocity-Time Graph (বেগ-সময়)</div>
+      <canvas id="gVel" height="150" class="graph-canvas"></canvas>
+    </div>
+    <div class="canvas-card">
+      <div style="padding:8px 12px; font-size:0.7rem; color:var(--accent3); border-bottom:1px solid var(--border)">Acceleration-Time Graph (ত্বরণ-সময়)</div>
+      <canvas id="gAcc" height="120" class="graph-canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="explain" style="margin-top:12px">
+    <h3 class="en">Reading Motion Graphs</h3>
+    <h3 class="bn" style="display:none">লেখচিত্র পড়া</h3>
+    <p class="en">Slope of Distance-Time graph = Speed. Slope of Velocity-Time graph = Acceleration. Area under Velocity-Time graph = Distance traveled. Constant acceleration gives a parabola on d-t graph and a straight line on v-t graph!</p>
+    <p class="bn" style="display:none">দূরত্ব-সময় লেখচিত্রের ঢাল = দ্রুতি। বেগ-সময় লেখচিত্রের ঢাল = ত্বরণ। বেগ-সময় লেখচিত্রের নিচের ক্ষেত্রফল = অতিক্রান্ত দূরত্ব। সমতরণে d-t গ্রাফ প্যারাবোলা এবং v-t গ্রাফ সরলরেখা হয়!</p>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// UTILITIES
+// ============================================================
+let isBangla = false;
+function toggleLang() {
+  isBangla = !isBangla;
+  document.body.classList.toggle('bangla', isBangla);
+  document.getElementById('langToggle').textContent = isBangla ? '🇬🇧 English' : '🇧🇩 বাংলা';
+}
+function updateVal(id, val, unit) {
+  document.getElementById(id).textContent = val + ' ' + unit;
+}
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+  // trigger init for section
+  setTimeout(() => initSection(id), 50);
+}
+function initSection(id) {
+  if(id==='scalar-vector') drawVectors();
+  if(id==='distance-disp') { setupRoute(); }
+  if(id==='speed-vel') { reset25(); }
+  if(id==='acceleration') { resetAcc(); }
+  if(id==='equations') { calcEquations(); resetEq(); }
+  if(id==='freefall') { resetFF(); }
+  if(id==='graphs') { drawGraphs(); }
+}
+
+// Helper: draw arrow
+function drawArrow(ctx, x1,y1,x2,y2,color='#00e5ff',width=2,label='') {
+  const headLen = 12;
+  const dx=x2-x1, dy=y2-y1;
+  const angle=Math.atan2(dy,dx);
+  ctx.save();
+  ctx.strokeStyle=color; ctx.lineWidth=width;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-headLen*Math.cos(angle-Math.PI/6),y2-headLen*Math.sin(angle-Math.PI/6));
+  ctx.lineTo(x2-headLen*Math.cos(angle+Math.PI/6),y2-headLen*Math.sin(angle+Math.PI/6));
+  ctx.closePath(); ctx.fill();
+  if(label) {
+    ctx.fillStyle=color; ctx.font='bold 12px Space Mono, monospace';
+    ctx.fillText(label, (x1+x2)/2+6,(y1+y2)/2-6);
+  }
+  ctx.restore();
+}
+
+function drawRoad(ctx, W, H, y, laneH=50) {
+  ctx.fillStyle='#1a1a2e';
+  ctx.fillRect(0, y-laneH/2, W, laneH);
+  // Road lines
+  ctx.strokeStyle='rgba(255,255,100,0.4)'; ctx.lineWidth=2; ctx.setLineDash([20,20]);
+  ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,y-laneH/2); ctx.lineTo(W,y-laneH/2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,y+laneH/2); ctx.lineTo(W,y+laneH/2); ctx.stroke();
+}
+
+function drawCar(ctx, x, y, color='#00e5ff', scale=1, label='') {
+  ctx.save();
+  ctx.translate(x,y); ctx.scale(scale,scale);
+  // Body
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.roundRect(-30,-14,60,22,4); ctx.fill();
+  // Roof
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.roundRect(-16,-26,32,14,3); ctx.fill();
+  // Windows
+  ctx.fillStyle='rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.roundRect(-13,-23,28,10,2); ctx.fill();
+  // Wheels
+  ctx.fillStyle='#333'; 
+  [[-18,10],[18,10]].forEach(([wx,wy])=>{
+    ctx.beginPath(); ctx.arc(wx,wy,7,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#888'; ctx.beginPath(); ctx.arc(wx,wy,3,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#333';
+  });
+  if(label) {
+    ctx.fillStyle='#fff'; ctx.font='bold 10px monospace';
+    ctx.textAlign='center'; ctx.fillText(label,0,28);
+  }
+  ctx.restore();
+}
+
+function drawTrain(ctx, x, y, color='#ff6b35', scale=1) {
+  ctx.save();
+  ctx.translate(x,y); ctx.scale(scale,scale);
+  ctx.fillStyle=color;
+  ctx.beginPath(); ctx.roundRect(-50,-18,100,30,3); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  [-30,-10,10,30].forEach(wx=>{
+    ctx.beginPath(); ctx.roundRect(wx-7,-15,14,14,2); ctx.fill();
+  });
+  ctx.fillStyle='#555';
+  [-35,-15,15,35].forEach(wx=>{
+    ctx.beginPath(); ctx.arc(wx,13,7,0,Math.PI*2); ctx.fill();
+  });
+  ctx.restore();
+}
+
+// ============================================================
+// 2.1 REST & MOTION
+// ============================================================
+let ref21 = 'ground';
+let c21state = {t:0, carX:100, trainX:50};
+
+function setRef21(r) { ref21=r; }
+
+function draw21() {
+  const canvas = document.getElementById('c21');
+  const W = canvas.offsetWidth; canvas.width=W; canvas.height=300;
+  const ctx = canvas.getContext('2d');
+  const carSpeed = parseFloat(document.getElementById('car1Speed').value);
+  const trainSpeed = parseFloat(document.getElementById('train1Speed').value);
+
+  ctx.fillStyle='#0a0a0f';
+  ctx.fillRect(0,0,W,300);
+
+  // Sky
+  ctx.fillStyle='#0d1b3e';
+  ctx.fillRect(0,0,W,220);
+
+  // Ground
+  ctx.fillStyle='#1a2a1a';
+  ctx.fillRect(0,220,W,80);
+
+  // Road
+  drawRoad(ctx,W,220,195,60);
+
+  // Train track
+  ctx.fillStyle='#4a3020';
+  ctx.fillRect(0,240,W,20);
+  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(0,244); ctx.lineTo(W,244); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,256); ctx.lineTo(W,256); ctx.stroke();
+  // Sleepers
+  for(let i=0;i<W;i+=30) {
+    ctx.fillStyle='#6a4030';
+    ctx.fillRect(i,242,18,16);
+  }
+
+  // Calculate relative positions
+  let carSpeed_disp = carSpeed;
+  let trainSpeed_disp = trainSpeed;
+  let groundSpeed_disp = 0;
+
+  if(ref21==='car') { trainSpeed_disp -= carSpeed; groundSpeed_disp = -carSpeed; carSpeed_disp = 0; }
+  if(ref21==='train') { carSpeed_disp -= trainSpeed; groundSpeed_disp = -trainSpeed; trainSpeed_disp = 0; }
+
+  c21state.carX = (c21state.carX + carSpeed_disp*0.5) % (W+80);
+  if(c21state.carX > W+60) c21state.carX = -60;
+  c21state.trainX = (c21state.trainX + trainSpeed_disp*0.5) % (W+120);
+  if(c21state.trainX > W+100) c21state.trainX = -100;
+
+  // Background trees (moving with ground)
+  let treeOffset = (c21state.t * groundSpeed_disp * 0.3) % 100;
+  ctx.fillStyle='#2d5a27';
+  for(let i=-50;i<W+50;i+=100) {
+    let tx = ((i + treeOffset % 100 + 1000) % (W+100)) - 50;
+    ctx.beginPath(); ctx.moveTo(tx,180); ctx.lineTo(tx-15,220); ctx.lineTo(tx+15,220); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#4a2b0a'; ctx.fillRect(tx-3,218,6,10); ctx.fillStyle='#2d5a27';
+  }
+
+  drawTrain(ctx, c21state.trainX, 248, '#ff6b35', 0.9);
+  drawCar(ctx, c21state.carX, 192, '#00e5ff', 1);
+
+  // Reference label
+  ctx.fillStyle='rgba(0,0,0,0.7)';
+  ctx.fillRect(8,8,220,36);
+  ctx.fillStyle='#7fff00'; ctx.font='bold 11px monospace';
+  ctx.fillText('REF: ' + ref21.toUpperCase(), 16, 22);
+  ctx.fillStyle='#00e5ff'; ctx.font='10px monospace';
+  ctx.fillText('Car: ' + carSpeed_disp.toFixed(0) + ' m/s | Train: ' + trainSpeed_disp.toFixed(0) + ' m/s', 16, 38);
+
+  c21state.t++;
+  requestAnimationFrame(draw21);
+}
+draw21();
+
+// ============================================================
+// 2.2 TYPES OF MOTION
+// ============================================================
+let motionType = 'linear';
+let motionT = 0;
+
+function setMotionType(t) {
+  motionType = t;
+  document.querySelectorAll('#types-motion .btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  // update explain
+  const explains = {
+    linear: {en:'Linear Motion (সরলরৈখিক গতি)', desc_en:'A car on a straight highway — every point moves same direction, same speed. Like a bullet, or a train on straight tracks.', desc_bn:'সোজা হাইওয়েতে গাড়ি — প্রতিটি বিন্দু একই দিকে একই গতিতে।'},
+    circular: {en:'Circular Motion (ঘূর্ণন গতি)', desc_en:'Moon orbiting Earth, fan blade spinning. Moves in a circle around a fixed point. Speed can be constant but velocity always changes!', desc_bn:'পৃথিবীর চারদিকে চাঁদের ঘোরা, পাখার পাখা। বৃত্তাকার পথে চলে।'},
+    translational: {en:'Translational Motion (চলন গতি)', desc_en:'A plane flying — every point of the plane moves identically at same time. In curvilinear translation, points move same but path is curved.', desc_bn:'বিমান উড়া — বিমানের প্রতিটি বিন্দু একই সময়ে একই দিকে যায়।'},
+    periodic: {en:'Periodic Motion (পর্যাবৃত্ত গতি)', desc_en:'Earth around Sun, pendulum, clock hands. Motion repeats after a fixed time period (পর্যায়কাল).', desc_bn:'পৃথিবীর সূর্যের চারদিকে ঘোরা, দোলক। নির্দিষ্ট সময় পরপর গতির পুনরাবৃত্তি।'},
+    shm: {en:'Simple Harmonic Motion (সরল স্পন্দন গতি)', desc_en:'A special periodic motion where restoring force ∝ displacement. Pendulum, spring-mass system. Most common vibration in nature!', desc_bn:'বিশেষ পর্যাবৃত্ত গতি। পুনরুদ্ধারকারী বল ∝ সরণ। দোলক, স্প্রিং-ভর পদ্ধতি।'}
+  };
+  const e = explains[t];
+  document.getElementById('motionExplain').innerHTML = `
+    <h3 class="en">${e.en}</h3>
+    <h3 class="bn" style="display:none">${e.en}</h3>
+    <p class="en">${e.desc_en}</p>
+    <p class="bn" style="display:none">${e.desc_bn}</p>
+  `;
+  if(isBangla) { document.querySelectorAll('.en').forEach(e=>e.style.display='none'); document.querySelectorAll('.bn').forEach(e=>e.style.display='block'); }
+}
+
+function draw22() {
+  const canvas = document.getElementById('c22');
+  const W = canvas.offsetWidth; canvas.width=W; canvas.height=300;
+  const ctx = canvas.getContext('2d');
+  const spd = parseFloat(document.getElementById('motionSpeed').value);
+  const sz = parseFloat(document.getElementById('objSize').value);
+
+  ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,W,300);
+  const cx=W/2, cy=150;
+
+  motionT += 0.02 * spd;
+
+  if(motionType==='linear') {
+    drawRoad(ctx,W,300,160,60);
+    // Multiple cars at different positions
+    const carX = (motionT * 60 * spd * 3) % (W+100) - 50;
+    drawCar(ctx, carX, 155, '#00e5ff', sz/20);
+    // Velocity arrow
+    drawArrow(ctx, carX, 130, carX+60, 130, '#00e5ff', 2, 'v');
+    ctx.fillStyle='rgba(0,229,255,0.1)';
+    ctx.fillRect(0,125, carX>0?carX:0, 8);
+    ctx.fillStyle='#7fff00'; ctx.font='11px monospace';
+    ctx.fillText('Straight-line path', 10, 50);
+  }
+
+  if(motionType==='circular') {
+    // Earth orbit
+    const r = Math.min(cx,cy) * 0.65;
+    // Orbit path
+    ctx.strokeStyle='rgba(0,229,255,0.2)'; ctx.lineWidth=1; ctx.setLineDash([5,5]);
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    // Sun
+    const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,30);
+    grad.addColorStop(0,'#fff700'); grad.addColorStop(0.5,'#ff8800'); grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(cx,cy,30,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff700'; ctx.font='10px monospace'; ctx.textAlign='center';
+    ctx.fillText('☀', cx, cy+4);
+    // Planet
+    const px = cx + r*Math.cos(motionT*spd);
+    const py = cy + r*Math.sin(motionT*spd);
+    ctx.fillStyle='#4488ff'; ctx.beginPath(); ctx.arc(px,py,sz*0.6,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#88aaff'; ctx.font='10px monospace'; ctx.textAlign='center'; ctx.fillText('🌍',px,py+4);
+    // Velocity tangent
+    const vx = -Math.sin(motionT*spd)*50;
+    const vy = Math.cos(motionT*spd)*50;
+    drawArrow(ctx,px,py,px+vx,py+vy,'#7fff00',2,'v');
+    ctx.textAlign='left';
+  }
+
+  if(motionType==='translational') {
+    // Plane moving in curved path
+    const pathPts = 50;
+    ctx.strokeStyle='rgba(255,107,53,0.3)'; ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let i=0;i<=pathPts;i++) {
+      const t=i/pathPts;
+      const x = W*0.1 + W*0.8*t;
+      const y = cy + Math.sin(t*Math.PI)*60;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    const progress = (motionT*0.3) % 1;
+    const px = W*0.1 + W*0.8*progress;
+    const py = cy + Math.sin(progress*Math.PI)*60;
+    ctx.fillStyle='#ff6b35'; ctx.font=`${sz*1.5}px serif`;
+    ctx.textAlign='center'; ctx.fillText('✈', px, py);
+    // Show all points move same
+    ctx.fillStyle='rgba(255,107,53,0.5)';
+    ctx.beginPath(); ctx.arc(px-30,py-10,5,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px+30,py-10,5,0,Math.PI*2); ctx.fill();
+    ctx.textAlign='left';
+  }
+
+  if(motionType==='periodic') {
+    // Pendulum
+    const pendLen = 120;
+    const angle = Math.sin(motionT*spd)*0.6;
+    const px = cx + pendLen*Math.sin(angle);
+    const py = 60 + pendLen*Math.cos(angle);
+    ctx.strokeStyle='#888'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(cx,60); ctx.lineTo(px,py); ctx.stroke();
+    ctx.fillStyle='#ff6b35'; ctx.beginPath(); ctx.arc(px,py,sz*0.8,0,Math.PI*2); ctx.fill();
+    // Trace arc
+    ctx.strokeStyle='rgba(255,107,53,0.2)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(cx,60,pendLen,-0.8,0.8); ctx.stroke();
+    ctx.fillStyle='#888'; ctx.beginPath(); ctx.arc(cx,60,5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#aaa'; ctx.font='10px monospace'; ctx.textAlign='center';
+    ctx.fillText(`Period T = 2π√(L/g)`, cx, 250);
+    ctx.fillText(`T ≈ ${(2*Math.PI*Math.sqrt(pendLen/1000/9.8)).toFixed(2)} s`, cx, 268);
+    ctx.textAlign='left';
+  }
+
+  if(motionType==='shm') {
+    // Spring-mass system
+    const restX = cx+50;
+    const amplitude = 80;
+    const massX = restX + amplitude*Math.sin(motionT*spd*2);
+    // Wall
+    ctx.fillStyle='#555'; ctx.fillRect(50,110,20,80);
+    // Spring
+    const springSegs = 12;
+    ctx.strokeStyle='#aaa'; ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let i=0;i<=springSegs;i++) {
+      const t=i/springSegs;
+      const sx = 70 + (massX-100-70)*t;
+      const sy = 150 + (i%2===0?0:15);
+      i===0?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);
+    }
+    ctx.stroke();
+    // Mass (box = car)
+    drawCar(ctx, massX, 148, '#00e5ff', sz/20);
+    // Equilibrium line
+    ctx.strokeStyle='rgba(127,255,0,0.4)'; ctx.setLineDash([5,5]);
+    ctx.beginPath(); ctx.moveTo(restX,100); ctx.lineTo(restX,200); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#7fff00'; ctx.font='10px monospace'; ctx.textAlign='center';
+    ctx.fillText('Equilibrium', restX, 230);
+    ctx.fillText(`x = ${(massX-restX).toFixed(0)} units`, restX, 248);
+    ctx.textAlign='left';
+  }
+
+  requestAnimationFrame(draw22);
+}
+draw22();
+
+// ============================================================
+// 2.3 SCALAR & VECTOR
+// ============================================================
+function drawVectors() {
+  const canvas = document.getElementById('c23');
+  const W = canvas.offsetWidth; canvas.width=W; canvas.height=320;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,W,320);
+
+  const cx=W/2, cy=180;
+  const magA = parseFloat(document.getElementById('vecA').value);
+  const dirA = parseFloat(document.getElementById('dirA').value) * Math.PI/180;
+  const magB = parseFloat(document.getElementById('vecB').value);
+  const dirB = parseFloat(document.getElementById('dirB').value) * Math.PI/180;
+
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,320); ctx.stroke(); }
+  for(let y=0;y<320;y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // Axes
+  drawArrow(ctx, cx-160, cy, cx+160, cy, 'rgba(255,255,255,0.3)', 1);
+  drawArrow(ctx, cx, cy+140, cx, cy-140, 'rgba(255,255,255,0.3)', 1);
+  ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.font='11px monospace';
+  ctx.fillText('+x', cx+165, cy+4); ctx.fillText('+y', cx+5, cy-145);
+
+  // Vector A
+  const ax2 = cx + magA*Math.cos(dirA);
+  const ay2 = cy - magA*Math.sin(dirA);
+  drawArrow(ctx, cx, cy, ax2, ay2, '#00e5ff', 3, 'A');
+
+  // Vector B
+  const bx2 = cx + magB*Math.cos(dirB);
+  const by2 = cy - magB*Math.sin(dirB);
+  drawArrow(ctx, cx, cy, bx2, by2, '#ff6b35', 3, 'B');
+
+  // Resultant (parallelogram law)
+  const rx = magA*Math.cos(dirA) + magB*Math.cos(dirB);
+  const ry = magA*Math.sin(dirA) + magB*Math.sin(dirB);
+  const rmag = Math.sqrt(rx*rx+ry*ry);
+  // Dashed parallelogram sides
+  ctx.strokeStyle='rgba(0,229,255,0.3)'; ctx.setLineDash([5,5]);
+  ctx.beginPath(); ctx.moveTo(ax2,ay2); ctx.lineTo(cx+rx,cy-ry); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx2,by2); ctx.lineTo(cx+rx,cy-ry); ctx.stroke();
+  ctx.setLineDash([]);
+  drawArrow(ctx, cx, cy, cx+rx, cy-ry, '#7fff00', 2, 'R');
+
+  document.getElementById('resultantVal').textContent = rmag.toFixed(1) + ' units';
+  document.getElementById('dispVal').textContent = rmag.toFixed(1) + ' units, ' + (Math.atan2(ry,rx)*180/Math.PI).toFixed(0) + '°';
+
+  // Legend
+  ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(8,8,200,70);
+  ctx.fillStyle='#00e5ff'; ctx.font='10px monospace'; ctx.fillText('A = ' + magA + ' units @ ' + (dirA*180/Math.PI).toFixed(0)+'°', 16, 26);
+  ctx.fillStyle='#ff6b35'; ctx.fillText('B = ' + magB + ' units @ ' + (dirB*180/Math.PI).toFixed(0)+'°', 16, 42);
+  ctx.fillStyle='#7fff00'; ctx.fillText('R = ' + rmag.toFixed(1) + ' units', 16, 58);
+
+  // Scalar example on side
+  ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(W-160,8,150,90);
+  ctx.fillStyle='#aaa'; ctx.font='9px monospace';
+  ctx.fillText('SCALAR (no direction):', W-155, 24);
+  ctx.fillStyle='#fff'; ctx.fillText('Temperature: 37°C', W-155, 40);
+  ctx.fillText('Mass: 60 kg', W-155, 55);
+  ctx.fillText('Time: 30 s', W-155, 70);
+  ctx.fillStyle='#aaa'; ctx.fillText('VECTOR (has direction):', W-155, 88);
+  ctx.fillStyle='#00e5ff'; ctx.fillText('Displacement ↗', W-155, 100);
+}
+
+// ============================================================
+// 2.4 DISTANCE & DISPLACEMENT
+// ============================================================
+let routeAnim = null, routeT = 0, routeRunning = false;
+let routePoints = [];
+
+function setupRoute() {
+  const canvas = document.getElementById('c24');
+  const W = canvas.offsetWidth||360; canvas.width=W; canvas.height=320;
+  routeT = 0; routeRunning = false;
+  const type = document.getElementById('routeType').value;
+  const W2=W, H=320;
+
+  if(type==='straight') {
+    routePoints = [{x:40,y:160},{x:W2-40,y:160}];
+  } else if(type==='curved') {
+    routePoints = [];
+    for(let i=0;i<=20;i++){const t=i/20; routePoints.push({x:40+t*(W2-80),y:160+Math.sin(t*Math.PI*2)*60});}
+  } else if(type==='return') {
+    routePoints = [{x:80,y:160},{x:W2-80,y:120},{x:W2-80,y:200},{x:80,y:160}];
+  } else if(type==='city') {
+    const s=80;
+    routePoints=[{x:s,y:H/2},{x:W2-s,y:H/2},{x:W2-s,y:H/2-80},{x:W2-2*s,y:H/2-80},{x:W2-2*s,y:H/2+60}];
+  }
+  drawRoute(0);
+}
+
+function drawRoute(progress) {
+  const canvas = document.getElementById('c24');
+  const W=canvas.width, H=canvas.height;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // Full path (faint)
+  ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=2; ctx.setLineDash([8,8]);
+  ctx.beginPath();
+  routePoints.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+  ctx.stroke(); ctx.setLineDash([]);
+
+  if(routePoints.length<2) return;
+  const totalLen = routePoints.reduce((sum,_,i)=>i===0?0:sum+Math.hypot(routePoints[i].x-routePoints[i-1].x,routePoints[i].y-routePoints[i-1].y),0);
+  const traveled = totalLen * Math.min(progress,1);
+
+  // Traveled path
+  ctx.strokeStyle='#ff6b35'; ctx.lineWidth=3;
+  ctx.beginPath();
+  let dist=0, carPos=routePoints[0];
+  ctx.moveTo(routePoints[0].x,routePoints[0].y);
+  for(let i=1;i<routePoints.length;i++) {
+    const segLen=Math.hypot(routePoints[i].x-routePoints[i-1].x,routePoints[i].y-routePoints[i-1].y);
+    if(dist+segLen<=traveled) {
+      ctx.lineTo(routePoints[i].x,routePoints[i].y);
+      dist+=segLen; carPos=routePoints[i];
+    } else {
+      const t2=(traveled-dist)/segLen;
+      const cx2=routePoints[i-1].x+(routePoints[i].x-routePoints[i-1].x)*t2;
+      const cy2=routePoints[i-1].y+(routePoints[i].y-routePoints[i-1].y)*t2;
+      ctx.lineTo(cx2,cy2);
+      carPos={x:cx2,y:cy2};
+      break;
+    }
+  }
+  ctx.stroke();
+
+  // Displacement arrow
+  if(progress>0.02) {
+    drawArrow(ctx, routePoints[0].x, routePoints[0].y, carPos.x, carPos.y, '#7fff00', 2, 's');
+  }
+
+  // Start point
+  ctx.fillStyle='#00e5ff'; ctx.beginPath(); ctx.arc(routePoints[0].x,routePoints[0].y,8,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.font='bold 11px monospace'; ctx.textAlign='center'; ctx.fillText('A',routePoints[0].x,routePoints[0].y+4);
+
+  // Car
+  drawCar(ctx, carPos.x, carPos.y-14, '#00e5ff', 0.8);
+
+  // End point
+  const ep=routePoints[routePoints.length-1];
+  ctx.fillStyle='#ff6b35'; ctx.beginPath(); ctx.arc(ep.x,ep.y,8,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.font='bold 11px monospace'; ctx.textAlign='center'; ctx.fillText('B',ep.x,ep.y+4);
+  ctx.textAlign='left';
+
+  // Update stats
+  const disp=Math.hypot(carPos.x-routePoints[0].x,carPos.y-routePoints[0].y);
+  const scale=0.5; // px to meters
+  document.getElementById('distVal').textContent=(traveled*scale).toFixed(1)+' m';
+  document.getElementById('displVal').textContent=(disp*scale).toFixed(1)+' m';
+  document.getElementById('pathLen').textContent=routePoints.length;
+}
+
+function startRoute() {
+  if(routeRunning) return;
+  routeRunning=true; routeT=0;
+  const spd = parseFloat(document.getElementById('routeSpeed').value)*0.005;
+  function animate(){
+    if(!routeRunning) return;
+    routeT+=spd;
+    drawRoute(routeT);
+    if(routeT<1) requestAnimationFrame(animate); else routeRunning=false;
+  }
+  animate();
+}
+function resetRoute() { routeRunning=false; routeT=0; setupRoute(); drawRoute(0); document.getElementById('distVal').textContent='0 m'; document.getElementById('displVal').textContent='0 m'; }
+setupRoute();
+
+// ============================================================
+// 2.5 SPEED & VELOCITY
+// ============================================================
+let state25={t:0,running:false,x:0,dist:0,dispX:0,dispY:0,startX:0,startY:0};
+
+function reset25() {
+  state25={t:0,running:false,x:0,dist:0,dispX:0,dispY:0,startX:0,startY:0};
+  document.getElementById('speedVal').textContent='0';
+  document.getElementById('velVal').textContent='0';
+  document.getElementById('avgSpeedVal').textContent='0';
+  document.getElementById('avgVelVal').textContent='0';
+  draw25();
+}
+
+function start25() { state25.running=true; animate25(); }
+
+function draw25() {
+  const canvas=document.getElementById('c25');
+  const W=canvas.offsetWidth||360; canvas.width=W; canvas.height=300;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,W,300);
+  const cx=W/2, cy=150;
+  const type=document.getElementById('trackType25').value;
+  const spd=parseFloat(document.getElementById('initSpeed').value);
+
+  if(type==='straight') {
+    drawRoad(ctx,W,300,160,60);
+    const carX=(state25.x % (W+100))-50;
+    drawCar(ctx,carX,152,'#00e5ff');
+    if(state25.running){
+      ctx.fillStyle='rgba(0,229,255,0.15)'; ctx.fillRect(0,140,carX,10);
+    }
+    // velocity arrow always points right
+    drawArrow(ctx,W/4,100,W/4+60,100,'#00e5ff',2,'v');
+    ctx.fillStyle='#aaa'; ctx.font='10px monospace';
+    ctx.fillText('Speed = Velocity (straight line)', 10, 50);
+  } else if(type==='circular'||type==='oval') {
+    const r=Math.min(cx-40,cy-40);
+    const rx=type==='oval'?r*1.3:r, ry=type==='oval'?r*0.75:r;
+    ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=8; ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=4; ctx.beginPath(); ctx.ellipse(cx,cy,rx+10,ry+10,0,0,Math.PI*2); ctx.stroke();
+
+    const angle=state25.t;
+    const carX=cx+rx*Math.cos(angle);
+    const carY=cy+ry*Math.sin(angle);
+    drawCar(ctx,carX,carY,'#00e5ff',0.85);
+    // Velocity is tangent
+    const vx=-rx*Math.sin(angle)*0.4;
+    const vy=ry*Math.cos(angle)*0.4;
+    drawArrow(ctx,carX,carY,carX+vx,carY+vy,'#7fff00',2,'v');
+    drawArrow(ctx,carX,carY,cx+(carX-cx)*0.5,cy+(carY-cy)*0.5,'#ff6b35',1,'a');
+
+    if(state25.t>0.01) {
+      const disp=Math.hypot(carX-state25.startX,carY-state25.startY);
+      document.getElementById('velVal').textContent=(disp/(state25.t+0.001)*0.05).toFixed(1);
+      document.getElementById('avgVelVal').textContent=(disp/(state25.t+0.001)*0.05).toFixed(2);
+    }
+    // After one lap avg vel ~0
+    if(state25.t>Math.PI*2-0.1) {
+      ctx.fillStyle='#ff6b35'; ctx.font='bold 11px monospace'; ctx.textAlign='center';
+      ctx.fillText('After 1 full lap: Avg Velocity ≈ 0 !', cx, 30);
+      ctx.fillText('(Start = End position)', cx, 46);
+      ctx.textAlign='left';
+    }
+  }
+
+  const s = spd * 0.8;
+  document.getElementById('speedVal').textContent=s.toFixed(1);
+  if(type==='straight') { document.getElementById('velVal').textContent=s.toFixed(1); document.getElementById('avgSpeedVal').textContent=s.toFixed(1); document.getElementById('avgVelVal').textContent=s.toFixed(1); }
+  else { document.getElementById('speedVal').textContent=s.toFixed(1); document.getElementById('avgSpeedVal').textContent=s.toFixed(1); }
+}
+
+function animate25() {
+  if(!state25.running) return;
+  const spd=parseFloat(document.getElementById('initSpeed').value)*0.003;
+  const type=document.getElementById('trackType25').value;
+  state25.t+=spd;
+  state25.x+=parseFloat(document.getElementById('initSpeed').value)*0.5;
+  if(state25.startX===0&&state25.startY===0) {
+    const canvas=document.getElementById('c25'); const W=canvas.offsetWidth||360;
+    const r=Math.min(W/2-40,100);
+    state25.startX=W/2+r; state25.startY=150;
+  }
+  draw25();
+  requestAnimationFrame(animate25);
+}
+draw25();
+
+// ============================================================
+// 2.6 ACCELERATION
+// ============================================================
+let accState={t:0,running:false,vel:0,dist:0};
+
+function resetAcc() {
+  accState={t:0,running:false,vel:parseFloat(document.getElementById('initVelAcc').value),dist:0};
+  document.getElementById('accVelVal').textContent=accState.vel.toFixed(1);
+  document.getElementById('accVal').textContent='0';
+  document.getElementById('accTimeVal').textContent='0';
+  document.getElementById('accDistVal').textContent='0';
+  drawAcc();
+}
+
+function startAcc() { accState.running=true; accState.t=0; accState.vel=parseFloat(document.getElementById('initVelAcc').value); accState.dist=0; animateAcc(); }
+
+function drawAcc() {
+  const canvas=document.getElementById('c26');
+  const W=canvas.offsetWidth||360; canvas.width=W; canvas.height=300;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,W,300);
+
+  drawRoad(ctx,W,300,180,70);
+
+  const carX=Math.min(accState.dist*2, W-60)+50;
+  drawCar(ctx,carX,172,'#ff6b35',1.1);
+
+  // Speed indicator (speedometer style)
+  const maxSpd=60;
+  const spdRatio=Math.min(accState.vel/maxSpd,1);
+  ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.beginPath(); ctx.arc(50,60,38,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#333'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(50,60,33,Math.PI*0.75,Math.PI*2.25); ctx.stroke();
+  const acc=parseFloat(document.getElementById('accInput').value);
+  ctx.strokeStyle=acc>0?'#7fff00':acc<0?'#ff4444':'#888';
+  ctx.lineWidth=4; ctx.beginPath(); ctx.arc(50,60,33,Math.PI*0.75,Math.PI*0.75+spdRatio*Math.PI*1.5); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='bold 10px monospace'; ctx.textAlign='center';
+  ctx.fillText(accState.vel.toFixed(0),50,56); ctx.fillText('m/s',50,66);
+  ctx.textAlign='left';
+
+  // Acceleration indicator
+  ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(W-110,10,100,50);
+  ctx.fillStyle=acc>0?'#7fff00':acc<0?'#ff4444':'#888';
+  ctx.font='bold 11px monospace'; ctx.textAlign='center';
+  ctx.fillText('a = '+acc+' m/s²',W-60,30);
+  ctx.fillText(acc>0?'▲ Speeding up':acc<0?'▼ Slowing down':'— Constant',W-60,48);
+  ctx.textAlign='left';
+
+  // Velocity arrow on car proportional to speed
+  if(accState.vel>0) drawArrow(ctx,carX+30,145,carX+30+accState.vel*1.5,145,'#00e5ff',2,'v');
+  if(accState.vel<0) drawArrow(ctx,carX-30,145,carX-30+accState.vel*1.5,145,'#ff4444',2,'v');
+}
+
+function animateAcc() {
+  if(!accState.running) return;
+  const acc=parseFloat(document.getElementById('accInput').value);
+  const dt=0.05;
+  accState.vel+=acc*dt;
+  accState.dist+=Math.max(0,accState.vel)*dt*20;
+  accState.t+=dt;
+
+  document.getElementById('accVelVal').textContent=accState.vel.toFixed(2);
+  document.getElementById('accVal').textContent=acc;
+  document.getElementById('accTimeVal').textContent=accState.t.toFixed(1);
+  document.getElementById('accDistVal').textContent=(accState.dist/20).toFixed(1);
+
+  drawAcc();
+  const canvas=document.getElementById('c26');
+  if(accState.dist<(canvas.offsetWidth)*3 && accState.t<30) requestAnimationFrame(animateAcc);
+  else accState.running=false;
+}
+drawAcc();
+
+// ============================================================
+// 2.7 EQUATIONS OF MOTION
+// ============================================================
+let eqState={t:0,running:false};
+
+function calcEquations() {
+  const u=parseFloat(document.getElementById('eq_u').value);
+  const a=parseFloat(document.getElementById('eq_a').value);
+  const t=parseFloat(document.getElementById('eq_time').value);
+  const v=u+a*t;
+  const s=u*t+0.5*a*t*t;
+  const v2=Math.sqrt(Math.abs(u*u+2*a*s));
+  document.getElementById('eq_v').textContent=v.toFixed(2)+' m/s';
+  document.getElementById('eq_s').textContent=s.toFixed(2)+' m';
+  document.getElementById('eq_v2').textContent=v2.toFixed(2)+' m/s';
+}
+
+function startEq() { eqState.t=0; eqState.running=true; calcEquations(); animateEq(); }
+function resetEq() { eqState.running=false; eqState.t=0; drawEq(0); }
+
+function drawEq(progress) {
+  const canvas=document.getElementById('c27');
+  const W=canvas.offsetWidth||360; canvas.width=W; canvas.height=300;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,W,300);
+  drawRoad(ctx,W,300,175,60);
+
+  const u=parseFloat(document.getElementById('eq_u').value);
+  const a=parseFloat(document.getElementById('eq_a').value);
+  const maxT=parseFloat(document.getElementById('eq_time').value);
+  const t=progress*maxT;
+  const v=u+a*t;
+  const s=Math.max(0,u*t+0.5*a*t*t);
+  const carX=Math.min(50+s*1.5,W-60);
+
+  drawCar(ctx,carX,168,'#7fff00',1);
+
+  // Equation overlay
+  ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(8,8,W-16,90);
+  ctx.font='11px monospace';
+  const clr=v>u?'#7fff00':v<u?'#ff4444':'#00e5ff';
+  ctx.fillStyle='#00e5ff'; ctx.fillText('① v = u + at = '+u+' + '+a+'×'+t.toFixed(1)+' = '+v.toFixed(2)+' m/s', 16, 28);
+  ctx.fillStyle='#ff6b35'; ctx.fillText('② s = ut + ½at² = '+(u*t).toFixed(1)+' + '+((0.5*a*t*t)).toFixed(1)+' = '+s.toFixed(2)+' m', 16, 48);
+  ctx.fillStyle='#7fff00'; ctx.fillText('③ v² = u²+2as = '+(u*u).toFixed(0)+' + '+( 2*a*s).toFixed(1)+' = '+(u*u+2*a*s).toFixed(1), 16, 68);
+  ctx.fillStyle=clr; ctx.fillText(v>u?'▲ Accelerating':v<u?'▼ Decelerating':'→ Constant speed', 16, 88);
+
+  document.getElementById('eq_t').textContent=t.toFixed(1)+' s';
+  calcEquations();
+}
+
+function animateEq() {
+  if(!eqState.running) return;
+  const maxT=parseFloat(document.getElementById('eq_time').value);
+  eqState.t+=0.008;
+  drawEq(Math.min(eqState.t,1));
+  if(eqState.t<1) requestAnimationFrame(animateEq);
+  else eqState.running=false;
+}
+drawEq(0); calcEquations();
+
+// ============================================================
+// 2.8 FREE FALL
+// ============================================================
+let ffState={t:0,running:false,v:0,h:0,maxH:80,dir:1};
+
+function resetFF() {
+  const h=parseFloat(document.getElementById('dropHeight').value);
+  ffState={t:0,running:false,v:0,h:0,maxH:h,dir:1};
+  document.getElementById('ff_v').textContent='0';
+  document.getElementById('ff_h').textContent='0';
+  document.getElementById('ff_t').textContent='0';
+  drawFF();
+}
+
+function startFF() { ffState.running=true; ffState.dir=1; animateFF(); }
+function throwUp() {
+  const u=parseFloat(document.getElementById('ffInitV').value);
+  ffState.running=true; ffState.v=u; ffState.h=0; ffState.dir=-1;
+  animateFF();
+}
+
+const objEmoji={ball:'⚽',feather:'🪶',stone:'🪨',cat:'🐱'};
+
+function drawFF() {
+  const canvas=document.getElementById('c28');
+  const W=canvas.offsetWidth||360; canvas.width=W; canvas.height=380;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,W,380);
+
+  // Sky
+  ctx.fillStyle='#0d1b3e'; ctx.fillRect(0,0,W,350);
+  // Ground
+  ctx.fillStyle='#1a3a1a'; ctx.fillRect(0,350,W,30);
+  ctx.strokeStyle='#2a5a2a'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,350); ctx.lineTo(W,350); ctx.stroke();
+
+  // Building (height reference)
+  const maxH=ffState.maxH;
+  const scale=300/maxH;
+  ctx.fillStyle='#1a1a2e';
+  ctx.fillRect(20,350-maxH*scale-5,60,maxH*scale+5);
+  // Windows
+  for(let floor=0;floor<Math.min(maxH/3,10);floor++) {
+    for(let col=0;col<2;col++) {
+      ctx.fillStyle=Math.random()>0.7?'#ff8':rgba(255,255,0,0.3);
+      ctx.fillStyle='rgba(255,255,100,0.4)';
+      ctx.fillRect(28+col*22,340-floor*30,15,18);
+    }
+  }
+  // Height marker
+  ctx.strokeStyle='rgba(255,107,53,0.5)'; ctx.setLineDash([5,5]); ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(85,350); ctx.lineTo(85,350-maxH*scale); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#ff6b35'; ctx.font='10px monospace'; ctx.textAlign='center';
+  ctx.fillText(maxH+'m', 85, 345-maxH*scale);
+
+  // Object
+  const objY = 350 - (maxH-ffState.h)*scale;
+  const obj=document.getElementById('dropObj').value;
+  ctx.font=`${32}px serif`; ctx.textAlign='center';
+  ctx.fillText(objEmoji[obj]||'⚽', W/2, objY);
+
+  // Velocity arrow
+  if(ffState.running) {
+    if(ffState.v>0) drawArrow(ctx,W/2+30,objY-10,W/2+30,objY+Math.min(ffState.v*2,60),'#ff4444',2);
+    else if(ffState.v<0) drawArrow(ctx,W/2+30,objY+10,W/2+30,objY+ffState.v*2,'#7fff00',2);
+  }
+
+  // Equations overlay
+  ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(W-180,8,172,80);
+  ctx.fillStyle='#00e5ff'; ctx.font='10px monospace'; ctx.textAlign='left';
+  ctx.fillText('v = gt = 9.8×'+ffState.t.toFixed(1), W-174, 26);
+  ctx.fillStyle='#ff6b35';
+  ctx.fillText('h = ½gt² = '+ffState.h.toFixed(1)+' m', W-174, 44);
+  ctx.fillStyle='#7fff00';
+  ctx.fillText('v = '+ffState.v.toFixed(1)+' m/s', W-174, 62);
+  ctx.fillStyle='#aaa';
+  ctx.fillText('g = 9.8 m/s²', W-174, 78);
+
+  ctx.textAlign='left';
+}
+
+function animateFF() {
+  if(!ffState.running) return;
+  const dt=0.05;
+  const g=9.8;
+  if(ffState.dir===1) {
+    // Falling
+    ffState.t+=dt;
+    ffState.v=g*ffState.t;
+    ffState.h=0.5*g*ffState.t*ffState.t;
+  } else {
+    // Thrown up
+    ffState.t+=dt;
+    ffState.v-=g*dt;
+    ffState.h+=ffState.v*dt;
+  }
+
+  document.getElementById('ff_v').textContent=Math.abs(ffState.v).toFixed(2);
+  document.getElementById('ff_h').textContent=ffState.h.toFixed(2);
+  document.getElementById('ff_t').textContent=ffState.t.toFixed(2);
+  drawFF();
+
+  if(ffState.h>=ffState.maxH || ffState.h<=-0.5) {
+    ffState.running=false;
+    if(ffState.h>=ffState.maxH) { ffState.h=ffState.maxH; drawFF(); }
+  } else {
+    requestAnimationFrame(animateFF);
+  }
+}
+resetFF();
+
+// ============================================================
+// GRAPHS
+// ============================================================
+function drawGraphs() {
+  const u=parseFloat(document.getElementById('g_u').value);
+  const a=parseFloat(document.getElementById('g_a').value);
+  const totalT=10;
+
+  function setupCanvas(id,H) {
+    const c=document.getElementById(id);
+    const W=c.offsetWidth||360; c.width=W; c.height=H;
+    return {c,ctx:c.getContext('2d'),W,H};
+  }
+
+  // Distance-Time
+  const {c:dc,ctx:dctx,W:dW,H:dH}=setupCanvas('gDist',150);
+  dctx.fillStyle='#0d0d18'; dctx.fillRect(0,0,dW,dH);
+  const pad=35;
+  dctx.strokeStyle='rgba(255,255,255,0.1)'; dctx.lineWidth=1;
+  for(let i=0;i<=5;i++){const y=pad+(dH-pad*2)*i/5; dctx.beginPath(); dctx.moveTo(pad,y); dctx.lineTo(dW-pad,y); dctx.stroke();}
+  drawArrow(dctx,pad,dH-pad,dW-10,dH-pad,'rgba(255,255,255,0.4)',1);
+  drawArrow(dctx,pad,dH-pad,pad,10,'rgba(255,255,255,0.4)',1);
+  dctx.fillStyle='#aaa'; dctx.font='9px monospace'; dctx.textAlign='center'; dctx.fillText('Time (s)',dW/2,dH-5); dctx.textAlign='right'; dctx.fillText('s(m)',pad-5,14);
+  const maxS=Math.max(u*totalT+0.5*a*totalT*totalT,10);
+  dctx.strokeStyle='#00e5ff'; dctx.lineWidth=2;
+  dctx.beginPath();
+  for(let i=0;i<=50;i++){const t=totalT*i/50; const s=u*t+0.5*a*t*t; const px=pad+(dW-pad*2)*t/totalT; const py=(dH-pad)-(dH-pad*2)*Math.max(0,s)/maxS; i===0?dctx.moveTo(px,py):dctx.lineTo(px,py);}
+  dctx.stroke();
+  dctx.textAlign='left';
+
+  // Velocity-Time
+  const {ctx:vctx,W:vW,H:vH}=setupCanvas('gVel',150);
+  vctx.fillStyle='#0d0d18'; vctx.fillRect(0,0,vW,vH);
+  for(let i=0;i<=5;i++){const y=pad+(vH-pad*2)*i/5; vctx.strokeStyle='rgba(255,255,255,0.1)'; vctx.lineWidth=1; vctx.beginPath(); vctx.moveTo(pad,y); vctx.lineTo(vW-pad,y); vctx.stroke();}
+  drawArrow(vctx,pad,vH-pad,vW-10,vH-pad,'rgba(255,255,255,0.4)',1);
+  drawArrow(vctx,pad,vH-pad,pad,10,'rgba(255,255,255,0.4)',1);
+  vctx.fillStyle='#aaa'; vctx.font='9px monospace'; vctx.textAlign='center'; vctx.fillText('Time (s)',vW/2,vH-5); vctx.textAlign='right'; vctx.fillText('v(m/s)',pad-5,14);
+  const maxV=Math.max(Math.abs(u+a*totalT),10);
+  vctx.strokeStyle='#ff6b35'; vctx.lineWidth=2; vctx.beginPath();
+  for(let i=0;i<=50;i++){const t=totalT*i/50; const v=u+a*t; const px=pad+(vW-pad*2)*t/totalT; const py=(vH-pad)-(vH-pad*2)*v/maxV/2+vH/4; i===0?vctx.moveTo(px,py):vctx.lineTo(px,py);}
+  vctx.stroke();
+  // Fill area
+  vctx.strokeStyle='transparent';
+  vctx.fillStyle='rgba(255,107,53,0.1)';
+  vctx.beginPath();
+  vctx.moveTo(pad,vH-pad);
+  for(let i=0;i<=50;i++){const t=totalT*i/50; const v=u+a*t; const px=pad+(vW-pad*2)*t/totalT; const py=(vH-pad)-(vH-pad*2)*v/maxV/2+vH/4; vctx.lineTo(px,py);}
+  vctx.lineTo(pad+(vW-pad*2),vH-pad); vctx.closePath(); vctx.fill();
+  vctx.fillStyle='#ff6b35'; vctx.font='9px monospace'; vctx.textAlign='center'; vctx.fillText('Area = Distance',vW*0.6,vH*0.5);
+  vctx.textAlign='left';
+
+  // Acceleration-Time
+  const {ctx:actx,W:aW,H:aH}=setupCanvas('gAcc',120);
+  actx.fillStyle='#0d0d18'; actx.fillRect(0,0,aW,aH);
+  drawArrow(actx,pad,aH/2,aW-10,aH/2,'rgba(255,255,255,0.4)',1);
+  drawArrow(actx,pad,aH-10,pad,10,'rgba(255,255,255,0.4)',1);
+  actx.fillStyle='#aaa'; actx.font='9px monospace'; actx.textAlign='center'; actx.fillText('Time (s)',aW/2,aH-2);
+  actx.strokeStyle='#7fff00'; actx.lineWidth=2;
+  actx.beginPath(); actx.moveTo(pad,aH/2-a*8); actx.lineTo(aW-pad,aH/2-a*8); actx.stroke();
+  actx.fillStyle='#7fff00'; actx.textAlign='right'; actx.fillText('a='+a+' m/s²',aW-pad-5,aH/2-a*8-4);
+  actx.textAlign='left';
+}
+drawGraphs();
+
+// ============================================================
+// 2.1 INIT (already running)
+// 2.2 INIT
+// ============================================================
+let mot22T=0;
+function draw22start(){ mot22T=0; draw22(); }
+
+// Run on load
+setTimeout(()=>{ setupRoute(); draw25(); drawAcc(); drawEq(0); resetFF(); drawGraphs(); drawVectors(); },200);
+</script>
+</body>
+</html>
